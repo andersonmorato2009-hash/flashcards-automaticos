@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flashcards Automáticos</title>
+
+  <!-- Biblioteca para ler arquivos Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    /* ========= LAYOUT BASE ========= */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 10px 16px;
+      font-family: Arial, sans-serif;
+      background-color: #ffffff;
+      color: #000000;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      font-size: 1.6rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* ========= BARRA SUPERIOR (BOTÃO OPÇÕES) ========= */
+    #topBar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 6px;
+    }
+
+    #optionsBtn {
+      padding: 6px 12px;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      background-color: #555;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    #optionsPanel {
+      text-align: right;
+      margin-bottom: 10px;
+    }
+
+    #optionsPanel button,
+    #optionsPanel select,
+    #optionsPanel input {
+      margin-left: 4px;
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+    }
+
+    /* ========= ÁREA SUPERIOR (CONTROLES) ========= */
+    #topControls {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    #topControls h3 {
+      margin: 6px 0 4px;
+      font-size: 1rem;
+    }
+
+    select,
+    input[type="file"] {
+      margin-top: 6px;
+      font-size: 1rem;
+      padding: 6px 10px;
+    }
+
+    /* ========= ÁREA DO CARD ========= */
+    #paginaCards {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #flashcards {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 260px;
+      width: 100%;
+    }
+
+    /* ========= CARD ========= */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      min-height: 260px;
+      padding: 16px;
+      background-color: #f9f9f9;
+      border-radius: 12px;
+      border: 2px solid #333;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      cursor: pointer;
+      box-sizing: border-box;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card-header {
+      font-weight: bold;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    .card-content {
+      flex: 1;
+      font-size: 1.05rem;
+      white-space: pre-wrap;
+    }
+
+    .card-resposta {
+      background-color: #e3f2fd;
+      border-color: #2196F3;
+    }
+
+    /* ========= BOTÕES ========= */
+    button {
+      padding: 10px 16px;
+      margin: 4px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .acertou  { background-color: #4CAF50; color: white; }
+    .errou    { background-color: #f44336; color: white; }
+    .desfazer { background-color: #555;    color: white; }
+
+    /* ========= PROGRESSO E PLACAR ========= */
+    #progress, #score {
+      text-align: center;
+      font-size: 1rem;
+      margin-top: 4px;
+    }
+
+    /* ========= ÁREA DO TIMER (RODAPÉ) ========= */
+    #timerArea {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: auto;          /* empurra para o rodapé de #paginaCards */
+      padding-top: 8px;
+      border-top: 1px dashed #aaa;
+      font-size: 0.95rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    #timerDisplay {
+      font-size: 1.3rem;
+      font-weight: bold;
+    }
+
+    #timerButtons {
+      display: flex;
+      gap: 6px;
+    }
+
+    #timerButtons button {
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    /* ========= MODO ESCURO ========= */
+    .dark-mode {
+      background-color: #181818;
+      color: #f1f1f1;
+    }
+
+    .dark-mode .card {
+      background-color: #222;
+      border-color: #fff;
+      color: #f1f1f1;
+    }
+
+    .dark-mode .card-resposta {
+      background-color: #0d1b2a;
+      border-color: #64b5f6;
+    }
+
+    .dark-mode button {
+      background-color: #333;
+      color: white;
+    }
+
+    /* ========= RESPONSIVIDADE ========= */
+
+    /* Tablets */
+    @media (max-width: 900px) {
+      h1 { font-size: 1.4rem; }
+      .card { max-width: 400px; }
+      .card-content { font-size: 1rem; }
+    }
+
+    /* Smartphones */
+    @media (max-width: 600px) {
+
+      body {
+        padding: 10px 12px;
+      }
+
+      h1 {
+        font-size: 1.3rem;
+        margin-bottom: 6px;
+      }
+
+      #topControls {
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto 12px auto;
+      }
+
+      #topControls h3 {
+        font-size: 0.95rem;
+      }
+
+      input[type="file"],
+      select {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #paginaCards {
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto;
+        gap: 12px;
+      }
+
+      .card {
+        max-width: 100%;
+        min-height: 260px;
+        padding: 16px;
+      }
+
+      .card-header {
+        font-size: 0.95rem;
+      }
+
+      .card-content {
+        font-size: 1.05rem;
+      }
+
+      #paginaCards > div:nth-of-type(2),
+      #paginaCards > div:nth-of-type(4) {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        max-width: 420px;
+      }
+
+      #paginaCards button {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 12px;
+        font-size: 1rem;
+      }
+
+      button {
+        min-height: 44px;
+      }
+
+      #progress, #score {
+        font-size: 0.95rem;
+      }
+
+      #paginaCards > div.infoAtalhos {
+        font-size: 0.7rem;
+        text-align: center;
+      }
+
+      #timerButtons {
+        flex-direction: row;
+        justify-content: center;
+        width: 100%;
+      }
+
+      #timerButtons button {
+        width: auto;
+      }
+    }
+
+    /* Foco visível (acessibilidade básica) */
+    .card:focus-visible,
+    button:focus-visible {
+      outline: 3px solid #2196F3;
+      outline-offset: 3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Flashcards Automáticos</h1>
+
+  <!-- BARRA SUPERIOR COM BOTÃO OPÇÕES -->
+  <div id="topBar">
+    <button id="optionsBtn" onclick="toggleOptions()">⚙️ Opções</button>
+  </div>
+
+  <!-- PAINEL DE OPÇÕES (TEMA + CONTROLES + EMBARALHAR + TEMPO + MANUAL) -->
+  <div id="optionsPanel" class="hidden">
+    <button id="darkModeBtn" onclick="toggleDarkMode()">🌙 Modo noturno</button>
+    <button id="toggleControlsBtn" onclick="toggleControls()">Ocultar controles</button>
+    <button onclick="embaralharCards()">🔀 Embaralhar cards</button>
+
+    <!-- Botão "Tempo" que revela configurações do cronômetro/contador -->
+    <button onclick="toggleTimerSettings()">⏱️ Tempo</button>
+
+    <div id="timerSettings" class="hidden" style="margin-top:4px;">
+      <label for="timerModeSelect" style="font-size:0.9rem;">Modo:</label>
+      <select id="timerModeSelect" onchange="changeTimerMode()">
+        <option value="off">Sem contador</option>
+        <option value="stopwatch">Cronômetro (↗)</option>
+        <option value="countdown">Regressivo (↘)</option>
+      </select>
+      <input
+        type="number"
+        id="countdownMinutes"
+        min="1"
+        max="180"
+        value="25"
+        style="width:70px;"
+        onchange="changeTimerMode()"
+      />
+      <span style="font-size:0.85rem;">min</span>
+    </div>
+
+    <!-- Botão para abrir o manual/instruções de uso -->
+    <button onclick="toggleManual()" style="margin-top:4px;">❔ Manual</button>
+
+    <!-- Painel de manual (instruções de uso) -->
+    <div id="manualPanel" class="hidden" style="margin-top:4px; font-size:0.85rem; text-align:left;">
+      <strong>Uso no computador (teclado):</strong>
+      <ul style="margin-top:4px; padding-left:18px;">
+        <li>← : voltar cartão</li>
+        <li>→ : avançar cartão</li>
+        <li>↑ : marcar <em>Acertou</em></li>
+        <li>↓ : marcar <em>Errou</em></li>
+        <li>Espaço ou Enter: virar o cartão (pergunta ⇆ resposta)</li>
+        <li>Backspace: desfazer última resposta</li>
+      </ul>
+      <strong>Uso no celular/tablet:</strong>
+      <ul style="margin-top:4px; padding-left:18px;">
+        <li>Toque no cartão para virar (pergunta / resposta).</li>
+        <li>Use os botões <em>Voltar</em> e <em>Avançar</em> para trocar de cartão.</li>
+        <li>Use os botões <em>Acertou</em>, <em>Errou</em> e <em>Desfazer</em> abaixo do cartão.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- CONTROLES SUPERIORES -->
+  <div id="topControls">
+    <div id="uploadArea">
+      <h3>Carregar arquivo Excel:</h3>
+      <input type="file" id="excelFile" accept=".xlsx,.xls" />
+    </div>
+
+    <div id="disciplinaArea" class="hidden">
+      <h3>Selecione a disciplina:</h3>
+      <select id="disciplinaSelect">
+        <option value="" disabled selected>Selecione...</option>
+      </select>
+      <br />
+      <button onclick="carregarDisciplina()">Confirmar</button>
+    </div>
+
+    <div id="filtroAssuntoArea" class="hidden">
+      <h3>Filtrar por assunto:</h3>
+      <select id="assuntoSelect">
+        <option value="">Todos os assuntos</option>
+      </select>
+      <br />
+      <button onclick="aplicarFiltroAssunto()">Aplicar filtro</button>
+    </div>
+  </div>
+
+  <!-- ÁREA PRINCIPAL -->
+  <div id="paginaCards" class="hidden" aria-label="Área de estudo com flashcards">
+
+    <div id="flashcards"></div>
+
+    <div>
+      <button onclick="voltar()">← Voltar</button>
+      <button onclick="avancar()">Avançar →</button>
+    </div>
+
+    <div id="progress" aria-live="polite">Cartão 0 de 0</div>
+    <div id="score" aria-live="polite">Acertos: 0 | Erros: 0</div>
+
+    <div>
+      <button class="acertou" onclick="responder(true)">Acertou</button>
+      <button class="errou" onclick="responder(false)">Errou</button>
+      <button class="desfazer" onclick="desfazer()">Desfazer</button>
+    </div>
+
+    <div class="infoAtalhos" style="font-size: 0.8rem; margin-top: 8px;">
+      <!-- Mantido vazio; instruções agora estão no botão "Manual" das Opções -->
+    </div>
+
+    <!-- TIMER NO RODAPÉ -->
+    <div id="timerArea" class="hidden">
+      <div>
+        <span id="timerLabel">Tempo de estudo:</span>
+      </div>
+      <div id="timerDisplay">00:00</div>
+      <div id="timerButtons">
+        <button id="timerStartPauseBtn" onclick="toggleTimer()">Iniciar</button>
+        <button id="timerResetBtn" onclick="resetTimer()">Zerar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let dadosExcel = {};
+    let cardsBase = [];
+    let cards = [];
+    let atual = 0;
+    let acertos = 0;
+    let erros = 0;
+    let historico = [];
+    let cardAtualEl = null; // referência ao card atualmente exibido
+
+    // ---- Estado do timer ----
+    let timerMode = 'off';            // 'off' | 'stopwatch' | 'countdown'
+    let timerRunning = false;
+    let timerIntervalId = null;
+    let elapsedSeconds = 0;
+    let countdownTotalSeconds = 0;
+    let countdownRemainingSeconds = 0;
+
+    /* ==================== LEITURA DO EXCEL ==================== */
+    document.getElementById("excelFile").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+
+          dadosExcel = {};
+
+          workbook.SheetNames.forEach(nome => {
+            const linhas = XLSX.utils.sheet_to_json(workbook.Sheets[nome], { header: 1 });
+
+            const cardsPlanilha =
+              linhas
+                .slice(1)
+                .filter(l => l[2] && l[3])
+                .map(l => ({
+                  numero:  l[0] ? String(l[0]).trim() : "",
+                  assunto: l[1] ? String(l[1]).trim() : "",
+                  pergunta: String(l[2]).trim(),
+                  resposta: String(l[3]).trim()
+                }));
+
+            dadosExcel[nome] = cardsPlanilha;
+          });
+
+          preencherListaDisciplinas();
+        } catch (err) {
+          console.error(err);
+          alert("Ocorreu um erro ao ler o arquivo Excel. Verifique o formato e tente novamente.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    /* ========== DISCIPLINAS ========== */
+    function preencherListaDisciplinas() {
+      const select = document.getElementById("disciplinaSelect");
+      while (select.options.length > 1) select.remove(1);
+
+      Object.keys(dadosExcel).forEach(nome => {
+        const o = document.createElement("option");
+        o.value = nome;
+        o.textContent = nome;
+        select.appendChild(o);
+      });
+
+      document.getElementById("disciplinaArea").classList.remove("hidden");
+    }
+
+    function carregarDisciplina() {
+      const nome = document.getElementById("disciplinaSelect").value;
+      if (!nome) return alert("Selecione uma disciplina!");
+
+      cardsBase = dadosExcel[nome].slice();
+      cards = cardsBase.slice();
+
+      atual = 0;
+      acertos = 0;
+      erros = 0;
+      historico = [];
+
+      preencherAssuntos();
+
+      document.getElementById("paginaCards").classList.remove("hidden");
+      document.getElementById("topControls").classList.add("hidden");
+      updateControlsButtonText();
+
+      mostrarCard(0);
+    }
+
+    /* ========== ASSUNTOS ========== */
+    function preencherAssuntos() {
+      const select = document.getElementById("assuntoSelect");
+      select.innerHTML = '<option value="">Todos os assuntos</option>';
+
+      const assuntos = [...new Set(cardsBase.map(c => c.assunto).filter(a => a))].sort();
+      assuntos.forEach(a => {
+        const opt = document.createElement("option");
+        opt.value = a;
+        opt.textContent = a;
+        select.appendChild(opt);
+      });
+
+      document.getElementById("filtroAssuntoArea").classList.remove("hidden");
+    }
+
+    function aplicarFiltroAssunto() {
+      const assunto = document.getElementById("assuntoSelect").value;
+
+      cards = assunto
+        ? cardsBase.filter(c => c.assunto === assunto)
+        : cardsBase.slice();
+
+      atual = 0;
+      acertos = 0;
+      erros = 0;
+      historico = [];
+
+      mostrarCard(0);
+    }
+
+    /* ========== EXIBIR CARD ========== */
+    function mostrarCard(i) {
+      const div = document.getElementById("flashcards");
+      div.innerHTML = "";
+      cardAtualEl = null;
+
+      if (!cards.length) {
+        const p = document.createElement("p");
+        p.textContent = "Nenhum card encontrado.";
+        div.appendChild(p);
+        atualizarContadores();
+        return;
+      }
+
+      const d = cards[i];
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("aria-pressed", "false");
+      card.setAttribute(
+        "aria-label",
+        "Flashcard. Toque ou pressione Enter/Espaço para alternar entre pergunta e resposta."
+      );
+
+      const header = document.createElement("div");
+      header.className = "card-header";
+      header.textContent = d.numero ? "Questão " + d.numero : "Questão";
+
+      const content = document.createElement("div");
+      content.className = "card-content";
+      content.textContent = d.pergunta;
+
+      card.dataset.estado = "pergunta";
+
+      const virarHandler = () => virar(card, i);
+      card.onclick = virarHandler;
+
+      // também permite virar com Enter/Espaço quando o foco está no card
+      card.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          virarHandler();
+        }
+      };
+
+      card.appendChild(header);
+      card.appendChild(content);
+
+      div.appendChild(card);
+
+      // guarda referência global
+      cardAtualEl = card;
+
+      atualizarContadores();
+    }
+
+    /* ========== VIRAR CARD ========== */
+    function virar(card, i) {
+      const c = card.querySelector(".card-content");
+      const d = cards[i];
+
+      if (card.dataset.estado === "pergunta") {
+        c.textContent = d.resposta;
+        card.dataset.estado = "resposta";
+        card.setAttribute("aria-pressed", "true");
+        card.classList.add("card-resposta");
+      } else {
+        c.textContent = d.pergunta;
+        card.dataset.estado = "pergunta";
+        card.setAttribute("aria-pressed", "false");
+        card.classList.remove("card-resposta");
+      }
+    }
+
+    /* ========== NAVEGAÇÃO ========== */
+    function avancar() {
+      if (atual < cards.length - 1) {
+        atual++;
+        mostrarCard(atual);
+      }
+    }
+
+    function voltar() {
+      if (atual > 0) {
+        atual--;
+        mostrarCard(atual);
+      }
+    }
+
+    /* ========== ACERTOS / ERROS ========== */
+    function responder(ok) {
+      if (!cards.length) return;
+
+      if (ok) {
+        acertos++;
+        historico.push("ac");
+      } else {
+        erros++;
+        historico.push("er");
+      }
+
+      atualizarContadores();
+
+      if (atual < cards.length - 1) {
+        avancar();
+      }
+    }
+
+    function desfazer() {
+      const u = historico.pop();
+      if (u === "ac") acertos = Math.max(0, acertos - 1);
+      if (u === "er") erros = Math.max(0, erros - 1);
+      atualizarContadores();
+    }
+
+    function atualizarContadores() {
+      document.getElementById("progress").textContent =
+        `Cartão ${cards.length ? atual + 1 : 0} de ${cards.length}`;
+      document.getElementById("score").textContent =
+        `Acertos: ${acertos} | Erros: ${erros}`;
+    }
+
+    /* ========== EMBARALHAR CARDS ========== */
+    function embaralharCards() {
+      if (!cards.length) {
+        alert("Nenhum card carregado para embaralhar.");
+        return;
+      }
+
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+
+      atual = 0;
+      acertos = 0;
+      erros = 0;
+      historico = [];
+
+      mostrarCard(0);
+    }
+
+    /* ========== TIMER (CRONÔMETRO / REGRESSIVO) ========== */
+
+    function toggleTimerSettings() {
+      const s = document.getElementById("timerSettings");
+      if (s) s.classList.toggle("hidden");
+    }
+
+    function changeTimerMode() {
+      const select = document.getElementById("timerModeSelect");
+      const mode = select.value;
+      const minutesInput = document.getElementById("countdownMinutes");
+      const timerArea = document.getElementById("timerArea");
+      const label = document.getElementById("timerLabel");
+
+      // reset ao trocar de modo
+      stopTimerInternal();
+      elapsedSeconds = 0;
+      countdownTotalSeconds = 0;
+      countdownRemainingSeconds = 0;
+      timerMode = mode;
+
+      if (mode === 'off') {
+        timerArea.classList.add("hidden");
+      } else {
+        timerArea.classList.remove("hidden");
+        if (mode === 'stopwatch') {
+          label.textContent = "Cronômetro:";
+        } else {
+          label.textContent = "Tempo restante:";
+          let mins = Number(minutesInput.value);
+          if (!Number.isFinite(mins) || mins <= 0) mins = 1;
+          countdownTotalSeconds = mins * 60;
+          countdownRemainingSeconds = countdownTotalSeconds;
+        }
+      }
+
+      updateTimerDisplay();
+      updateTimerButtonsText();
+    }
+
+    function toggleTimer() {
+      if (timerMode === 'off') {
+        alert("Selecione um modo de tempo nas opções (cronômetro ou regressivo).");
+        return;
+      }
+
+      if (timerRunning) {
+        stopTimerInternal();
+      } else {
+        if (timerMode === 'countdown') {
+          if (countdownRemainingSeconds <= 0) {
+            let mins = Number(document.getElementById("countdownMinutes").value);
+            if (!Number.isFinite(mins) || mins <= 0) mins = 1;
+            countdownTotalSeconds = mins * 60;
+            countdownRemainingSeconds = countdownTotalSeconds;
+          }
+        }
+        timerIntervalId = setInterval(tickTimer, 1000);
+        timerRunning = true;
+      }
+
+      updateTimerButtonsText();
+    }
+
+    function resetTimer() {
+      stopTimerInternal();
+
+      if (timerMode === 'stopwatch') {
+        elapsedSeconds = 0;
+      } else if (timerMode === 'countdown') {
+        let mins = Number(document.getElementById("countdownMinutes").value);
+        if (!Number.isFinite(mins) || mins <= 0) mins = 1;
+        countdownTotalSeconds = mins * 60;
+        countdownRemainingSeconds = countdownTotalSeconds;
+      }
+
+      updateTimerDisplay();
+      updateTimerButtonsText();
+    }
+
+    function stopTimerInternal() {
+      if (timerIntervalId) {
+        clearInterval(timerIntervalId);
+        timerIntervalId = null;
+      }
+      timerRunning = false;
+    }
+
+    function tickTimer() {
+      if (timerMode === 'stopwatch') {
+        elapsedSeconds++;
+        updateTimerDisplay();
+      } else if (timerMode === 'countdown') {
+        countdownRemainingSeconds--;
+        if (countdownRemainingSeconds <= 0) {
+          countdownRemainingSeconds = 0;
+          updateTimerDisplay();
+          stopTimerInternal();
+          updateTimerButtonsText();
+          alert("Tempo de estudo encerrado!");
+          if (navigator.vibrate) {
+            navigator.vibrate(300);
+          }
+        } else {
+          updateTimerDisplay();
+        }
+      }
+    }
+
+    function updateTimerDisplay() {
+      const display = document.getElementById("timerDisplay");
+      let secondsToShow = 0;
+
+      if (timerMode === 'stopwatch') {
+        secondsToShow = elapsedSeconds;
+      } else if (timerMode === 'countdown') {
+        secondsToShow = countdownRemainingSeconds;
+      } else {
+        secondsToShow = 0;
+      }
+
+      display.textContent = formatTime(secondsToShow);
+    }
+
+    function updateTimerButtonsText() {
+      const startPauseBtn = document.getElementById("timerStartPauseBtn");
+      if (!startPauseBtn) return;
+      startPauseBtn.textContent = timerRunning ? "Pausar" : "Iniciar";
+    }
+
+    function formatTime(totalSeconds) {
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      const mm = String(minutes).padStart(2, "0");
+      const ss = String(seconds).padStart(2, "0");
+
+      if (hours > 0) {
+        const hh = String(hours).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+      }
+      return `${mm}:${ss}`;
+    }
+
+    /* ========== MODO ESCURO ========== */
+    function toggleDarkMode() {
+      const isDark = document.body.classList.toggle("dark-mode");
+      const btn = document.getElementById("darkModeBtn");
+      if (btn) {
+        btn.textContent = isDark ? "☀️ Modo claro" : "🌙 Modo noturno";
+      }
+    }
+
+    /* ========== PAINEL DE OPÇÕES ========== */
+    function toggleOptions() {
+      const panel = document.getElementById("optionsPanel");
+      panel.classList.toggle("hidden");
+    }
+
+    function toggleControls() {
+      const controls = document.getElementById("topControls");
+      controls.classList.toggle("hidden");
+      updateControlsButtonText();
+    }
+
+    function updateControlsButtonText() {
+      const btn = document.getElementById("toggleControlsBtn");
+      if (!btn) return;
+      const hidden = document.getElementById("topControls").classList.contains("hidden");
+      btn.textContent = hidden ? "Mostrar controles" : "Ocultar controles";
+    }
+
+    /* ========== MANUAL / INSTRUÇÕES ========== */
+    function toggleManual() {
+      const panel = document.getElementById("manualPanel");
+      if (panel) {
+        panel.classList.toggle("hidden");
+      }
+    }
+
+    /* ========== ATALHOS DE TECLADO ==========
+       ← : voltar
+       → : avançar
+       ↑ : acertou
+       ↓ : errou
+       Espaço / Enter : virar card
+       Backspace : desfazer último acerto/erro
+    ========================================= */
+    document.addEventListener("keydown", function (e) {
+      // Evita interferir com campos de input (caso sejam adicionados futuramente)
+      const tag = e.target.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea") {
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          voltar();
+          break;
+
+        case "ArrowRight":
+          e.preventDefault();
+          avancar();
+          break;
+
+        case "ArrowUp":
+          e.preventDefault();
+          responder(true);
+          break;
+
+        case "ArrowDown":
+          e.preventDefault();
+          responder(false);
+          break;
+
+        case " ":
+        case "Enter":
+          if (cardAtualEl && cards.length) {
+            e.preventDefault();
+            virar(cardAtualEl, atual);
+          }
+          break;
+
+        case "Backspace":
+          e.preventDefault();
+          desfazer();
+          break;
+      }
+    });
+
+    // Inicializa o timer como "off"
+    updateTimerDisplay();
+  </script>
+</body>
+</html>
