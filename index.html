@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Flashcards Automáticos</title>
 
-  <!-- Biblioteca para ler arquivos Excel -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Biblioteca para ler arquivos Excel (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     /* ========= LAYOUT BASE ========= */
@@ -165,7 +165,7 @@
       flex-direction: column;
       align-items: center;
       gap: 6px;
-      margin-top: auto;          /* empurra para o rodapé de #paginaCards */
+      margin-top: auto;
       padding-top: 8px;
       border-top: 1px dashed #aaa;
       font-size: 0.95rem;
@@ -464,10 +464,20 @@
       if (!file) return;
 
       const reader = new FileReader();
+
+      // Se o navegador suportar readAsBinaryString (melhor para iOS/Safari), usamos.
+      const useBinaryString = !!reader.readAsBinaryString;
+
       reader.onload = function (evt) {
         try {
-          const data = new Uint8Array(evt.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
+          let workbook;
+          if (useBinaryString) {
+            const binaryStr = evt.target.result;
+            workbook = XLSX.read(binaryStr, { type: "binary" });
+          } else {
+            const data = new Uint8Array(evt.target.result);
+            workbook = XLSX.read(data, { type: "array" });
+          }
 
           dadosExcel = {};
 
@@ -491,10 +501,15 @@
           preencherListaDisciplinas();
         } catch (err) {
           console.error(err);
-          alert("Ocorreu um erro ao ler o arquivo Excel. Verifique se ele é um .xlsx válido e tente novamente.");
+          alert("Ocorreu um erro ao ler o arquivo Excel. Confirme se ele é um .xlsx válido e tente novamente.");
         }
       };
-      reader.readAsArrayBuffer(file);
+
+      if (useBinaryString) {
+        reader.readAsBinaryString(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
     });
 
     /* ========== DISCIPLINAS ========== */
@@ -604,7 +619,6 @@
       const virarHandler = () => virar(card, i);
       card.onclick = virarHandler;
 
-      // também permite virar com Enter/Espaço quando o foco está no card
       card.onkeydown = (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -617,7 +631,6 @@
 
       div.appendChild(card);
 
-      // guarda referência global
       cardAtualEl = card;
 
       atualizarContadores();
@@ -723,7 +736,6 @@
       const timerArea = document.getElementById("timerArea");
       const label = document.getElementById("timerLabel");
 
-      // reset ao trocar de modo
       stopTimerInternal();
       elapsedSeconds = 0;
       countdownTotalSeconds = 0;
@@ -899,7 +911,6 @@
        Backspace : desfazer último acerto/erro
     ========================================= */
     document.addEventListener("keydown", function (e) {
-      // Evita interferir com campos de input
       const tag = e.target.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea") {
         return;
