@@ -424,7 +424,7 @@
     </div>
 
     <div class="infoAtalhos" style="font-size: 0.8rem; margin-top: 8px;">
-      <!-- Mantido vazio; instruções agora estão no botão "Manual" das Opções -->
+      <!-- Instruções estão no botão "Manual" das Opções -->
     </div>
 
     <!-- TIMER NO RODAPÉ -->
@@ -491,7 +491,7 @@
           preencherListaDisciplinas();
         } catch (err) {
           console.error(err);
-          alert("Ocorreu um erro ao ler o arquivo Excel. Verifique o formato e tente novamente.");
+          alert("Ocorreu um erro ao ler o arquivo Excel. Verifique se ele é .xlsx válido e tente novamente.");
         }
       };
       reader.readAsArrayBuffer(file);
@@ -899,7 +899,7 @@
        Backspace : desfazer último acerto/erro
     ========================================= */
     document.addEventListener("keydown", function (e) {
-      // Evita interferir com campos de input (caso sejam adicionados futuramente)
+      // Evita interferir com campos de input
       const tag = e.target.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea") {
         return;
