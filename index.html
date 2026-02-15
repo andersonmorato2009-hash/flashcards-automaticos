@@ -101,23 +101,66 @@
       align-items: center;
       min-height: 260px;
       width: 100%;
+      /* >>> perspectiva para o efeito 3D <<< */
+      perspective: 1000px;
     }
 
-    /* ========= CARD ========= */
+    /* ========= CARD + FLIP 3D ========= */
+
+    /*
+      .card agora é o elemento que gira em 3D.
+      Dentro dele teremos duas faces:
+      - .card-face.card-front (pergunta)
+      - .card-face.card-back  (resposta)
+    */
     .card {
+      position: relative;
       width: 100%;
       max-width: 420px;
       min-height: 260px;
-      padding: 16px;
-      background-color: #f9f9f9;
       border-radius: 12px;
-      border: 2px solid #333;
+      cursor: pointer;
+      box-sizing: border-box;
+
+      /* 3D */
+      transform-style: preserve-3d;
+      transition: transform 0.6s ease;
+    }
+
+    /* Quando tiver a classe flipped, gira 180° no eixo Y */
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    /* Faces (frente e verso) */
+    .card-face {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 12px;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      cursor: pointer;
+      padding: 16px;
       box-sizing: border-box;
-      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Frente (pergunta) */
+    .card-front {
+      background-color: #f9f9f9;
+      border: 2px solid #333;
+      color: #000;
+    }
+
+    /* Verso (resposta) */
+    .card-back {
+      background-color: #e3f2fd;
+      border: 2px solid #2196F3;
+      color: #000;
+      transform: rotateY(180deg);
     }
 
     .card-header {
@@ -133,9 +176,10 @@
       white-space: pre-wrap;
     }
 
+    /* Mantemos a classe para compatibilidade (não é mais usada) */
     .card-resposta {
-      background-color: #e3f2fd;
-      border-color: #2196F3;
+      /* ficou obsoleta com o flip 3D,
+         mas deixo aqui caso queira reaproveitar para outra coisa */
     }
 
     /* ========= BOTÕES ========= */
@@ -195,15 +239,17 @@
       color: #f1f1f1;
     }
 
-    .dark-mode .card {
+    /* Ajuste do card em modo escuro: alteramos as faces, não o .card em si */
+    .dark-mode .card-front {
       background-color: #222;
       border-color: #fff;
       color: #f1f1f1;
     }
 
-    .dark-mode .card-resposta {
+    .dark-mode .card-back {
       background-color: #0d1b2a;
       border-color: #64b5f6;
+      color: #f1f1f1;
     }
 
     .dark-mode button {
@@ -258,7 +304,6 @@
       .card {
         max-width: 100%;
         min-height: 260px;
-        padding: 16px;
       }
 
       .card-header {
@@ -327,13 +372,13 @@
     <button id="optionsBtn" onclick="toggleOptions()">⚙️ Opções</button>
   </div>
 
-  <!-- PAINEL DE OPÇÕES (TEMA + CONTROLES + EMBARALHAR + TEMPO + MANUAL) -->
+  <!-- PAINEL DE OPÇÕES -->
   <div id="optionsPanel" class="hidden">
     <button id="darkModeBtn" onclick="toggleDarkMode()">🌙 Modo noturno</button>
     <button id="toggleControlsBtn" onclick="toggleControls()">Ocultar controles</button>
     <button onclick="embaralharCards()">🔀 Embaralhar cards</button>
 
-    <!-- Botão "Tempo" que revela configurações do cronômetro/contador -->
+    <!-- Tempo -->
     <button onclick="toggleTimerSettings()">⏱️ Tempo</button>
 
     <div id="timerSettings" class="hidden" style="margin-top:4px;">
@@ -355,10 +400,9 @@
       <span style="font-size:0.85rem;">min</span>
     </div>
 
-    <!-- Botão para abrir o manual/instruções de uso -->
+    <!-- Manual -->
     <button onclick="toggleManual()" style="margin-top:4px;">❔ Manual</button>
 
-    <!-- Painel de manual (instruções de uso) -->
     <div id="manualPanel" class="hidden" style="margin-top:4px; font-size:0.85rem; text-align:left;">
       <strong>Uso no computador (teclado):</strong>
       <ul style="margin-top:4px; padding-left:18px;">
@@ -464,8 +508,6 @@
       if (!file) return;
 
       const reader = new FileReader();
-
-      // Se o navegador suportar readAsBinaryString (melhor para iOS/Safari), usamos.
       const useBinaryString = !!reader.readAsBinaryString;
 
       reader.onload = function (evt) {
@@ -579,7 +621,7 @@
       mostrarCard(0);
     }
 
-    /* ========== EXIBIR CARD ========== */
+    /* ========== EXIBIR CARD (AGORA COM FRENTE E VERSO) ========== */
     function mostrarCard(i) {
       const div = document.getElementById("flashcards");
       div.innerHTML = "";
@@ -595,6 +637,7 @@
 
       const d = cards[i];
 
+      // Elemento que gira
       const card = document.createElement("div");
       card.className = "card";
 
@@ -606,17 +649,43 @@
         "Flashcard. Toque ou pressione Enter/Espaço para alternar entre pergunta e resposta."
       );
 
-      const header = document.createElement("div");
-      header.className = "card-header";
-      header.textContent = d.numero ? "Questão " + d.numero : "Questão";
-
-      const content = document.createElement("div");
-      content.className = "card-content";
-      content.textContent = d.pergunta;
-
       card.dataset.estado = "pergunta";
 
-      const virarHandler = () => virar(card, i);
+      // Frente (pergunta)
+      const front = document.createElement("div");
+      front.className = "card-face card-front";
+
+      const headerFront = document.createElement("div");
+      headerFront.className = "card-header";
+      headerFront.textContent = d.numero ? "Questão " + d.numero : "Questão";
+
+      const contentFront = document.createElement("div");
+      contentFront.className = "card-content";
+      contentFront.textContent = d.pergunta;
+
+      front.appendChild(headerFront);
+      front.appendChild(contentFront);
+
+      // Verso (resposta)
+      const back = document.createElement("div");
+      back.className = "card-face card-back";
+
+      const headerBack = document.createElement("div");
+      headerBack.className = "card-header";
+      headerBack.textContent = d.numero ? "Resposta " + d.numero : "Resposta";
+
+      const contentBack = document.createElement("div");
+      contentBack.className = "card-content";
+      contentBack.textContent = d.resposta;
+
+      back.appendChild(headerBack);
+      back.appendChild(contentBack);
+
+      card.appendChild(front);
+      card.appendChild(back);
+
+      const virarHandler = () => virar(card);
+
       card.onclick = virarHandler;
 
       card.onkeydown = (e) => {
@@ -626,31 +695,24 @@
         }
       };
 
-      card.appendChild(header);
-      card.appendChild(content);
-
       div.appendChild(card);
-
       cardAtualEl = card;
 
       atualizarContadores();
     }
 
-    /* ========== VIRAR CARD ========== */
-    function virar(card, i) {
-      const c = card.querySelector(".card-content");
-      const d = cards[i];
+    /* ========== VIRAR CARD (FLIP 3D) ========== */
+    function virar(card) {
+      if (!card) return;
 
       if (card.dataset.estado === "pergunta") {
-        c.textContent = d.resposta;
+        card.classList.add("flipped");
         card.dataset.estado = "resposta";
         card.setAttribute("aria-pressed", "true");
-        card.classList.add("card-resposta");
       } else {
-        c.textContent = d.pergunta;
+        card.classList.remove("flipped");
         card.dataset.estado = "pergunta";
         card.setAttribute("aria-pressed", "false");
-        card.classList.remove("card-resposta");
       }
     }
 
@@ -902,14 +964,7 @@
       }
     }
 
-    /* ========== ATALHOS DE TECLADO ==========
-       ← : voltar
-       → : avançar
-       ↑ : acertou
-       ↓ : errou
-       Espaço / Enter : virar card
-       Backspace : desfazer último acerto/erro
-    ========================================= */
+    /* ========== ATALHOS DE TECLADO ========== */
     document.addEventListener("keydown", function (e) {
       const tag = e.target.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea") {
@@ -941,7 +996,8 @@
         case "Enter":
           if (cardAtualEl && cards.length) {
             e.preventDefault();
-            virar(cardAtualEl, atual);
+            // chamamos virar(cardAtualEl); o segundo parâmetro é ignorado
+            virar(cardAtualEl);
           }
           break;
 
