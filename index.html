@@ -101,18 +101,23 @@
       align-items: center;
       min-height: 260px;
       width: 100%;
-      /* >>> perspectiva para o efeito 3D <<< */
+      /* perspectiva para o efeito 3D */
       perspective: 1000px;
     }
 
-    /* ========= CARD + FLIP 3D ========= */
+    /* ========= CARD WRAPPER (ANIMAÇÃO DE ARRASTE) ========= */
+    .card-wrapper {
+      width: 100%;
+      max-width: 420px;
+      min-height: 260px;
+      transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    }
 
-    /*
-      .card agora é o elemento que gira em 3D.
-      Dentro dele teremos duas faces:
-      - .card-face.card-front (pergunta)
-      - .card-face.card-back  (resposta)
-    */
+    .card-wrapper.dragging {
+      transition: none;
+    }
+
+    /* ========= CARD + FLIP 3D ========= */
     .card {
       position: relative;
       width: 100%;
@@ -127,12 +132,10 @@
       transition: transform 0.6s ease;
     }
 
-    /* Quando tiver a classe flipped, gira 180° no eixo Y */
     .card.flipped {
       transform: rotateY(180deg);
     }
 
-    /* Faces (frente e verso) */
     .card-face {
       position: absolute;
       top: 0;
@@ -146,19 +149,17 @@
       gap: 12px;
       padding: 16px;
       box-sizing: border-box;
+      border: 2px solid #333;
     }
 
-    /* Frente (pergunta) */
     .card-front {
       background-color: #f9f9f9;
-      border: 2px solid #333;
       color: #000;
     }
 
-    /* Verso (resposta) */
     .card-back {
       background-color: #e3f2fd;
-      border: 2px solid #2196F3;
+      border-color: #2196F3;
       color: #000;
       transform: rotateY(180deg);
     }
@@ -176,10 +177,8 @@
       white-space: pre-wrap;
     }
 
-    /* Mantemos a classe para compatibilidade (não é mais usada) */
     .card-resposta {
-      /* ficou obsoleta com o flip 3D,
-         mas deixo aqui caso queira reaproveitar para outra coisa */
+      /* mantida apenas para compatibilidade, atualmente não usada */
     }
 
     /* ========= BOTÕES ========= */
@@ -239,7 +238,6 @@
       color: #f1f1f1;
     }
 
-    /* Ajuste do card em modo escuro: alteramos as faces, não o .card em si */
     .dark-mode .card-front {
       background-color: #222;
       border-color: #fff;
@@ -257,18 +255,27 @@
       color: white;
     }
 
-    /* ========= RESPONSIVIDADE ========= */
+    /* ========= FEEDBACK VISUAL (ACERTO / ERRO) ========= */
+    .card-wrapper.acerto-feedback .card-front,
+    .card-wrapper.acerto-feedback .card-back {
+      box-shadow: 0 0 18px rgba(76, 175, 80, 0.9); /* verde */
+      border-color: #4CAF50;
+    }
 
-    /* Tablets */
+    .card-wrapper.erro-feedback .card-front,
+    .card-wrapper.erro-feedback .card-back {
+      box-shadow: 0 0 18px rgba(244, 67, 54, 0.9); /* vermelho */
+      border-color: #f44336;
+    }
+
+    /* ========= RESPONSIVIDADE ========= */
     @media (max-width: 900px) {
       h1 { font-size: 1.4rem; }
       .card { max-width: 400px; }
       .card-content { font-size: 1rem; }
     }
 
-    /* Smartphones */
     @media (max-width: 600px) {
-
       body {
         padding: 10px 12px;
       }
@@ -416,6 +423,8 @@
       <strong>Uso no celular/tablet:</strong>
       <ul style="margin-top:4px; padding-left:18px;">
         <li>Toque no cartão para virar (pergunta / resposta).</li>
+        <li>Arraste para a direita: marcar <em>Errou</em> e avançar.</li>
+        <li>Arraste para a esquerda: marcar <em>Acertou</em> e avançar.</li>
         <li>Use os botões <em>Voltar</em> e <em>Avançar</em> para trocar de cartão.</li>
         <li>Use os botões <em>Acertou</em>, <em>Errou</em> e <em>Desfazer</em> abaixo do cartão.</li>
       </ul>
@@ -494,6 +503,9 @@
     let historico = [];
     let cardAtualEl = null; // referência ao card atualmente exibido
 
+    // flag para diferenciar clique real de "click" gerado por toque
+    let hadTouch = false;
+
     // ---- Estado do timer ----
     let timerMode = 'off';            // 'off' | 'stopwatch' | 'countdown'
     let timerRunning = false;
@@ -508,18 +520,11 @@
       if (!file) return;
 
       const reader = new FileReader();
-      const useBinaryString = !!reader.readAsBinaryString;
 
       reader.onload = function (evt) {
         try {
-          let workbook;
-          if (useBinaryString) {
-            const binaryStr = evt.target.result;
-            workbook = XLSX.read(binaryStr, { type: "binary" });
-          } else {
-            const data = new Uint8Array(evt.target.result);
-            workbook = XLSX.read(data, { type: "array" });
-          }
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
 
           dadosExcel = {};
 
@@ -547,11 +552,7 @@
         }
       };
 
-      if (useBinaryString) {
-        reader.readAsBinaryString(file);
-      } else {
-        reader.readAsArrayBuffer(file);
-      }
+      reader.readAsArrayBuffer(file);
     });
 
     /* ========== DISCIPLINAS ========== */
@@ -621,7 +622,7 @@
       mostrarCard(0);
     }
 
-    /* ========== EXIBIR CARD (AGORA COM FRENTE E VERSO) ========== */
+    /* ========== EXIBIR CARD (FRENTE E VERSO + SWIPE COM ANIMAÇÃO) ========== */
     function mostrarCard(i) {
       const div = document.getElementById("flashcards");
       div.innerHTML = "";
@@ -637,7 +638,13 @@
 
       const d = cards[i];
 
-      // Elemento que gira
+      // Wrapper externo para animação de arraste
+      const wrapper = document.createElement("div");
+      wrapper.className = "card-wrapper";
+      wrapper.style.transform = "translateX(0px) rotate(0deg)";
+      wrapper.style.opacity = "1";
+
+      // Elemento que gira (flip 3D)
       const card = document.createElement("div");
       card.className = "card";
 
@@ -683,20 +690,172 @@
 
       card.appendChild(front);
       card.appendChild(back);
+      wrapper.appendChild(card);
+      div.appendChild(wrapper);
+
+      cardAtualEl = card;
 
       const virarHandler = () => virar(card);
 
-      card.onclick = virarHandler;
+      // Clique (desktop / mouse): vira card
+      card.onclick = (e) => {
+        // se veio de um toque, ignoramos o click gerado automaticamente
+        if (hadTouch) {
+          hadTouch = false;
+          return;
+        }
+        virarHandler();
+      };
 
+      // Teclado (Enter / Espaço)
       card.onkeydown = (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
+          e.stopPropagation(); // evita flip duplo
           virarHandler();
         }
       };
 
-      div.appendChild(card);
-      cardAtualEl = card;
+      /* ---- SUPORTE A GESTOS DE SWIPE NO CELULAR COM ANIMAÇÃO
+         - Toque simples (movimento muito pequeno) -> vira/desvira card
+         - Swipe grande direita -> Errou
+         - Swipe grande esquerda -> Acertou
+      -------------------------------------------------------------- */
+      let startX = null;
+      let startY = null;
+      let currentX = 0;
+      let currentY = 0;
+
+      const TAP_THRESHOLD = 10;       // até 10px consideramos toque
+      const SWIPE_THRESHOLD = 100;    // a partir de 100px consideramos swipe (acertou/errou)
+      const MAX_ROTATION = 15;        // inclinação máxima em graus
+      const MIN_OPACITY = 0.4;        // card não some completamente enquanto arrasta
+
+      function animateBackToCenter() {
+        wrapper.classList.remove("dragging");
+        wrapper.style.transition = "transform 0.2s ease-out, opacity 0.2s ease-out";
+        wrapper.style.transform = "translateX(0px) rotate(0deg)";
+        wrapper.style.opacity = "1";
+      }
+
+      function animateOutAndAnswer(isCorrect) {
+        wrapper.classList.remove("dragging");
+        wrapper.style.transition = "transform 0.25s ease-out, opacity 0.25s ease-out";
+
+        // Remove classes antigas de feedback
+        wrapper.classList.remove("acerto-feedback", "erro-feedback");
+
+        // Aplica a cor de feedback
+        if (isCorrect) {
+          wrapper.classList.add("acerto-feedback"); // verde
+        } else {
+          wrapper.classList.add("erro-feedback");   // vermelho
+        }
+
+        // Direção da animação:
+        // - isCorrect = true  -> Esquerda (acertou)
+        // - isCorrect = false -> Direita  (errou)
+        const direction = isCorrect ? -1 : 1;
+        const offscreenX = direction * (window.innerWidth || 400);
+
+        wrapper.style.transform = `translateX(${offscreenX}px) rotate(${direction * 25}deg)`;
+        wrapper.style.opacity = "0";
+
+        setTimeout(() => {
+          responder(isCorrect);
+          // (wrapper antigo será removido quando o próximo card for exibido)
+          wrapper.classList.remove("acerto-feedback", "erro-feedback");
+        }, 250);
+      }
+
+      wrapper.addEventListener("touchstart", (e) => {
+        hadTouch = true; // marca que houve interação por toque
+        if (!e.touches || e.touches.length === 0) return;
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+        currentX = 0;
+        currentY = 0;
+        wrapper.classList.add("dragging");
+        wrapper.style.transition = "none";
+      });
+
+      wrapper.addEventListener("touchmove", (e) => {
+        if (startX === null || startY === null) return;
+        if (!e.touches || e.touches.length === 0) return;
+
+        const touch = e.touches[0];
+        const moveX = touch.clientX;
+        const moveY = touch.clientY;
+
+        const deltaX = moveX - startX;
+        const deltaY = moveY - startY;
+
+        currentX = deltaX;
+        currentY = deltaY;
+
+        // Se o movimento for mais vertical que horizontal, deixa rolar scroll
+        if (Math.abs(deltaY) > Math.abs(deltaX)) {
+          return;
+        }
+
+        const screenWidth = window.innerWidth || 400;
+        const rotation = MAX_ROTATION * (deltaX / screenWidth);
+        const opacity = Math.max(MIN_OPACITY, 1 - Math.abs(deltaX) / (screenWidth * 0.7));
+
+        wrapper.style.transform = `translateX(${deltaX}px) rotate(${rotation}deg)`;
+        wrapper.style.opacity = String(opacity);
+      });
+
+      wrapper.addEventListener("touchend", (e) => {
+        if (startX === null || startY === null) {
+          return;
+        }
+
+        let deltaX = currentX;
+        let deltaY = currentY;
+
+        // fallback caso não tenha havido touchmove
+        if (!deltaX && !deltaY && e.changedTouches && e.changedTouches.length > 0) {
+          const touch = e.changedTouches[0];
+          deltaX = touch.clientX - startX;
+          deltaY = touch.clientY - startY;
+        }
+
+        const absDeltaX = Math.abs(deltaX);
+        const absDeltaY = Math.abs(deltaY);
+
+        // zera estado de início do toque
+        startX = null;
+        startY = null;
+        currentX = 0;
+        currentY = 0;
+
+        // 1) Toque simples (quase sem movimento) -> virar/desvirar card
+        if (absDeltaX < TAP_THRESHOLD && absDeltaY < TAP_THRESHOLD) {
+          animateBackToCenter();  // garante que está centralizado
+          virar(card);
+          return;
+        }
+
+        // 2) Arrastou um pouco, mas menos que o suficiente pra swipe -> só volta pro centro
+        if (absDeltaX < SWIPE_THRESHOLD) {
+          animateBackToCenter();
+          return;
+        }
+
+        // 3) Swipe de verdade -> acerto/erro (INVERTIDO)
+        // Agora:
+        // - Direita  -> Errou
+        // - Esquerda -> Acertou
+        if (deltaX > 0) {
+          // Direita -> Errou
+          animateOutAndAnswer(false);
+        } else {
+          // Esquerda -> Acertou
+          animateOutAndAnswer(true);
+        }
+      });
 
       atualizarContadores();
     }
@@ -746,7 +905,8 @@
       atualizarContadores();
 
       if (atual < cards.length - 1) {
-        avancar();
+        atual++;
+        mostrarCard(atual);
       }
     }
 
@@ -785,7 +945,6 @@
     }
 
     /* ========== TIMER (CRONÔMETRO / REGRESSIVO) ========== */
-
     function toggleTimerSettings() {
       const s = document.getElementById("timerSettings");
       if (s) s.classList.toggle("hidden");
@@ -996,7 +1155,6 @@
         case "Enter":
           if (cardAtualEl && cards.length) {
             e.preventDefault();
-            // chamamos virar(cardAtualEl); o segundo parâmetro é ignorado
             virar(cardAtualEl);
           }
           break;
